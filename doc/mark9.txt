@@ -1,78 +1,113 @@
-*mark9.txt*   Plugin documentation for mark9.nvim
+*mark9.txt*  Plugin documentation for mark9.nvim
 
-NAME
-  mark9.nvim - Minimal line-level Harpoon-style mark plugin
+mark9.nvim
 
-DESCRIPTION
-  mark9.nvim bridges the simplicity of Harpoon with the line-level recall of marks.
-  It provides 9 persistent, file-scoped marks across Neovim sessions.
+**mark9.nvim** is a minimal, line-level Harpoon-style mark plugin for Neovim.
+This plugin bridges the simplicity of Harpoon with the line-level recall of marks.
 
-FEATURES
-    - Line-level marks (A-I)
-    - Gutter and virtual text icons
-    - Duplicate prevention
-    - FIFO cycling when all marks are used
-    - Optional Telescope picker with preview
-    - Project-scoped persistence
+Features
 
-INSTALLATION
-  Using Lazy.nvim:
+- Persistent line-level marks (limited to 9, file-scoped)
+- Gutter and virtual icons for visibility
+- A floating list menu (optional)
+- Telescope integration with preview
+- FIFO cycling when all slots are full
+- Project-scoped persistence without polluting your repo
 
-    >
-    {
-      "bearded-giant/mark9.nvim",
-      config = function()
-        require("mark9").setup({
-          use_telescope = true,
-          sign_icon = "*",
-          virtual_text = true,
-          virtual_icon = "*",
-          virtual_text_pos = "eol",
-          window_padding = 1,
-        })
-      end,
-      keys = {
-        { "<leader>ha", function() require("mark9.marks").add_mark() end, desc = "Add mark" },
-        { "<leader>hl", function() require("mark9.marks").telescope_picker() end, desc = "List marks" },
-        { "<leader>hL", function() require("mark9.telescope").picker() end, desc = "Telescope picker" },
-        { "<leader>hc", function() require("mark9.marks").clear_all_marks() end, desc = "Clear all" },
-      },
-      dependencies = { "nvim-telescope/telescope.nvim" },
-    }
-    <
+Installation
 
-USAGE
-  Default keymaps:
+Using [Lazy.nvim](https://github.com/folke/lazy.nvim)
 
-    <leader>ha   Add current line mark
-    <leader>hl   Show mark list (Telescope or fallback)
-    <leader>hL   Force Telescope picker
-    <leader>hc   Clear all marks
+<lua
+{
+  "bearded-giant/mark9.nvim",
+  config = function()
+    require("mark9").setup({
+      use_telescope = true,
+      sign_icon = "*",
+      virtual_text = true,
+      virtual_icon = "*",
+      virtual_text_pos = "eol",
+      window_padding = 1,
+    })
+  end,
+  keys = {
+    { "<leader>ha", function() require("mark9.marks").add_mark() end, desc = "Add mark" },
+    { "<leader>hl", function() require("mark9.marks").telescope_picker() end, desc = "List marks" },
+    { "<leader>hL", function() require("mark9.telescope").picker() end, desc = "Telescope picker" },
+    { "<leader>hc", function() require("mark9.marks").clear_all_marks() end, desc = "Clear all" },
+  },
+  dependencies = { "nvim-telescope/telescope.nvim" },
+}
+<
 
-COMMANDS
-    :Mark9Save    Save all marks to current project scope
-    :Mark9Load    Load marks for current project
+Usage
 
-CONFIGURATION
-  Options available in setup():
+Key Mappings
 
-    use_telescope     (default: false)
-    sign_icon         (default: "*")
-    virtual_text      (default: true)
-    virtual_icon      (default: "*")
-    virtual_text_pos  (default: "eol")
-    window_padding    (default: 1)
+| Mapping      | Description           |
+| ------------ | --------------------- |
+| `<leader>ha` | Add current line mark |
+| `<leader>hl` | Show mark list        |
+| `<leader>hL` | Open Telescope picker |
+| `<leader>hc` | Clear all marks       |
 
-PERSISTENCE
-  Stored per project in:
-    ~/.local/share/nvim/mark9/<sanitized-project-root>.json
+Commands
 
-SEE ALSO
-  :h marks
-  https://github.com/bearded-giant/mark9.nvim
+| Command     | Description                         |
+| ----------- | ----------------------------------- |
+| `Mark9Save` | Manually save marks to project file |
+| `Mark9Load` | Manually load marks from file       |
+| `Mark9Menu` | Open floating mark menu             |
+| `Mark9List` | Open Telescope mark picker          |
 
-LICENSE
-  MIT
+Configuration
 
- vim:tw=78:ts=8:ft=help:norl:
+Default Configuration
 
+<lua
+require("mark9").setup({
+  -- UI Options
+  use_telescope = true,        -- Use Telescope for mark list (fallbacks to floating window if false)
+  sign_icon = "_",             -- Icon displayed in the gutter
+  virtual_text = true,         -- Show virtual inline icon at the mark line
+  virtual_icon = "_",          -- Symbol used for virtual text (if enabled)
+  virtual_text_pos = "eol",    -- Position: 'eol', 'overlay', or 'right_align'
+
+  -- Floating Window Options
+  horizontal_padding =  2    -- Horizontal padding in floating window
+  window_padding = 1,          -- Top and Bottom padding in floating window
+  window_position = "center",  -- 'center', 'top_left', 'top_right', 'bottom_left', 'bottom_right'
+  window_width_percent = 0.4,  -- Window width as percentage of editor width
+
+  -- Mark Configuration
+  mark_chars = { "A", "B", "C", "D", "E", "F", "G", "H", "I" } -- Characters used for marks
+})
+<
+
+Persistence
+
+Mark files are automatically saved on exit and reloaded per project.
+They're stored in:
+
+<
+~/.local/share/nvim/mark9/<sanitized-project-root>.json
+<
+
+This avoids `.gitignore` issues and prevents shared state across projects.
+
+Roadmap
+
+- [x] Telescope picker with preview
+- [x] FIFO overwrite behavior
+- [x] Project-local scoped persistence
+- [ ] Dot-repeatable mark navigation
+- [ ] Marks sorted and grouped by file in UI
+- [ ] Custom Telescope extension (optional config)
+- [ ] Optional help file for `:h mark9`
+
+License
+
+MIT
+
+vim:tw=78:ts=8:ft=help:norl:
