@@ -1,0 +1,78 @@
+*mark9.txt*   Plugin documentation for mark9.nvim
+
+NAME
+  mark9.nvim - Minimal line-level Harpoon-style mark plugin
+
+DESCRIPTION
+  mark9.nvim bridges the simplicity of Harpoon with the line-level recall of marks.
+  It provides 9 persistent, file-scoped marks across Neovim sessions.
+
+FEATURES
+    - Line-level marks (A-I)
+    - Gutter and virtual text icons
+    - Duplicate prevention
+    - FIFO cycling when all marks are used
+    - Optional Telescope picker with preview
+    - Project-scoped persistence
+
+INSTALLATION
+  Using Lazy.nvim:
+
+    >
+    {
+      "bearded-giant/mark9.nvim",
+      config = function()
+        require("mark9").setup({
+          use_telescope = true,
+          sign_icon = "*",
+          virtual_text = true,
+          virtual_icon = "*",
+          virtual_text_pos = "eol",
+          window_padding = 1,
+        })
+      end,
+      keys = {
+        { "<leader>ha", function() require("mark9.marks").add_mark() end, desc = "Add mark" },
+        { "<leader>hl", function() require("mark9.marks").telescope_picker() end, desc = "List marks" },
+        { "<leader>hL", function() require("mark9.telescope").picker() end, desc = "Telescope picker" },
+        { "<leader>hc", function() require("mark9.marks").clear_all_marks() end, desc = "Clear all" },
+      },
+      dependencies = { "nvim-telescope/telescope.nvim" },
+    }
+    <
+
+USAGE
+  Default keymaps:
+
+    <leader>ha   Add current line mark
+    <leader>hl   Show mark list (Telescope or fallback)
+    <leader>hL   Force Telescope picker
+    <leader>hc   Clear all marks
+
+COMMANDS
+    :Mark9Save    Save all marks to current project scope
+    :Mark9Load    Load marks for current project
+
+CONFIGURATION
+  Options available in setup():
+
+    use_telescope     (default: false)
+    sign_icon         (default: "*")
+    virtual_text      (default: true)
+    virtual_icon      (default: "*")
+    virtual_text_pos  (default: "eol")
+    window_padding    (default: 1)
+
+PERSISTENCE
+  Stored per project in:
+    ~/.local/share/nvim/mark9/<sanitized-project-root>.json
+
+SEE ALSO
+  :h marks
+  https://github.com/bearded-giant/mark9.nvim
+
+LICENSE
+  MIT
+
+ vim:tw=78:ts=8:ft=help:norl:
+
