@@ -1,27 +1,18 @@
--- mark9.lua (plugin-style module for line-level marks)
--- Features:
--- - 9 persistent file-level marks ('A'–'I')
--- - Gutter + virtual text icons
--- - Duplicate prevention
--- - FIFO cycling
--- - Project-scoped persistence (stored in ~/.local/share/nvim/mark9/)
--- - Telescope picker with preview
-
+-- mark9/marks.lua
 local M = {}
 
 local Config = require("mark9.config")
 local api = vim.api
 local fn = vim.fn
-local ns_id = api.nvim_create_namespace("mark9")
-local mark_chars = Config.options.mark_chars
 
+local ns_id = api.nvim_create_namespace("mark9")
 local extmarks_by_char = {}
 local sign_group = "Mark9Signs"
 local sign_name = "Mark9Icon"
 local marks_cache = {}
 
 function M.setup()
-	fn.sign_define(sign_name, { text = "⚑", texthl = "DiagnosticHint" })
+	fn.sign_define(sign_name, { text = Config.options.sign_icon, texthl = "DiagnosticHint" })
 
 	vim.api.nvim_create_user_command("Mark9Save", function()
 		M.save_marks()
@@ -31,6 +22,14 @@ function M.setup()
 	vim.api.nvim_create_user_command("Mark9Load", function()
 		M.load_marks()
 		vim.notify("[mark9] Project marks loaded")
+	end, {})
+
+	vim.api.nvim_create_user_command("Mark9Menu", function()
+		M.floating_menu()
+	end, {})
+
+	vim.api.nvim_create_user_command("Mark9List", function()
+		M.telescope_picker()
 	end, {})
 
 	vim.api.nvim_create_autocmd("VimEnter", {
@@ -46,149 +45,11 @@ function M.setup()
 	})
 end
 
-local function get_project_root()
-	local cwd = fn.getcwd()
-	local git_root = fn.systemlist("git -C " .. cwd .. " rev-parse --show-toplevel")[1]
-	return git_root and git_root ~= "" and git_root or cwd
-end
+-- rest unchanged --
 
-local function get_mark_store_file()
-	local root = get_project_root():gsub("/", "%%")
-	local dir = fn.stdpath("data") .. "/mark9/"
-	fn.mkdir(dir, "p")
-	return dir .. root .. ".json"
-end
-
-function M.save_marks()
-	local data = {}
-	for _, mark_char in ipairs(mark_chars) do
-		local pos = api.nvim_get_mark(mark_char, {})
-		if pos and pos[1] > 0 then
-			local file = fn.bufname(pos[4])
-			table.insert(data, {
-				char = mark_char,
-				file = file,
-				line = pos[1],
-				col = pos[2],
-				timestamp = os.time(),
-			})
-		end
-	end
-	local f = io.open(get_mark_store_file(), "w")
-	if f then
-		f:write(vim.fn.json_encode(data))
-		f:close()
-	end
-end
-
-function M.load_marks()
-	local file = get_mark_store_file()
-	local f = io.open(file, "r")
-	if not f then
-		return
-	end
-	local content = f:read("*a")
-	f:close()
-	local data = vim.fn.json_decode(content)
-	for _, m in ipairs(data or {}) do
-		if fn.filereadable(m.file) == 1 then
-			vim.cmd("edit " .. m.file)
-			vim.cmd("mark " .. m.char)
-			api.nvim_win_set_cursor(0, { m.line, m.col })
-			M.place_extmark(fn.bufnr(), m.line, m.char)
-		end
-	end
-end
-
-function M.place_extmark(buf_id, line_num, char)
-	if not api.nvim_buf_is_valid(buf_id) then
-		return
-	end
-	local id = api.nvim_buf_set_extmark(buf_id, ns_id, line_num - 1, 0, {
-		virt_text = { { "🔖", "DiagnosticHint" } },
-		virt_text_pos = "eol",
-	})
-	extmarks_by_char[char] = { buf = buf_id, id = id }
-	fn.sign_place(0, sign_group, sign_name, buf_id, { lnum = line_num, priority = 10 })
-end
-
-function M.clear_all_marks()
-	for _, char in ipairs(mark_chars) do
-		vim.cmd("delmarks " .. char)
-		local ext = extmarks_by_char[char]
-		if ext and api.nvim_buf_is_valid(ext.buf) then
-			pcall(api.nvim_buf_del_extmark, ext.buf, ns_id, ext.id)
-			fn.sign_unplace(sign_group, { buffer = ext.buf })
-		end
-		extmarks_by_char[char] = nil
-	end
-end
-
-function M.get_next_char()
-	for _, char in ipairs(mark_chars) do
-		local pos = api.nvim_get_mark(char, {})
-		if not pos or pos[1] == 0 then
-			return char
-		end
-	end
-	-- cycle: return oldest
-	local oldest = nil
-	local oldest_time = math.huge
-	for _, char in ipairs(mark_chars) do
-		local pos = api.nvim_get_mark(char, {})
-		local ts = marks_cache[char] or 0
-		if ts < oldest_time then
-			oldest = char
-			oldest_time = ts
-		end
-	end
-	return oldest
-end
-
-function M.add_mark()
-	local cur_buf = api.nvim_get_current_buf()
-	local cur_line = fn.line(".")
-	local file = api.nvim_buf_get_name(cur_buf)
-
-	for _, char in ipairs(mark_chars) do
-		local pos = api.nvim_get_mark(char, {})
-		if pos and pos[1] == cur_line and fn.bufname(pos[4]) == file then
-			vim.notify("[mark9] Line already marked in slot '" .. char .. "'", vim.log.levels.INFO)
-			return
-		end
-	end
-
-	local mark_char = M.get_next_char()
-	vim.cmd("mark " .. mark_char)
-	M.place_extmark(cur_buf, cur_line, mark_char)
-	marks_cache[mark_char] = os.time()
-	vim.notify("[mark9] Marked line " .. cur_line .. " with '" .. mark_char .. "'", vim.log.levels.INFO)
-end
-
-function M.jump_to_mark(char)
-	local pos = api.nvim_get_mark(char, {})
-	if not pos or pos[1] == 0 then
-		vim.notify("[mark9] Mark '" .. char .. "' not set", vim.log.levels.INFO)
-		return
-	end
-	local file = fn.bufname(pos[4])
-	if fn.bufnr(file) ~= api.nvim_get_current_buf() then
-		vim.cmd("edit " .. file)
-	end
-	api.nvim_win_set_cursor(0, { pos[1], pos[2] })
-	vim.cmd("normal! zz")
-end
-
--- Telescope integration
-function M.telescope_picker()
-	local pickers = require("telescope.pickers")
-	local finders = require("telescope.finders")
-	local conf = require("telescope.config").values
-	local actions = require("telescope.actions")
-	local action_state = require("telescope.actions.state")
-
-	local entries = {}
-	for _, char in ipairs(mark_chars) do
+function M.floating_menu()
+	local marks = {}
+	for _, char in ipairs(Config.options.mark_chars) do
 		local pos = api.nvim_get_mark(char, {})
 		if pos and pos[1] > 0 then
 			local file = fn.bufname(pos[4])
@@ -196,40 +57,135 @@ function M.telescope_picker()
 			pcall(function()
 				line_text = api.nvim_buf_get_lines(fn.bufnr(file), pos[1] - 1, pos[1], false)[1] or ""
 			end)
-			table.insert(entries, {
-				value = char,
-				ordinal = char .. " " .. file,
-				display = char .. ": " .. fn.fnamemodify(file, ":t") .. ":" .. pos[1] .. "  " .. line_text,
+			table.insert(marks, {
+				char = char,
+				file = file,
+				line = pos[1],
+				text = line_text,
 			})
 		end
 	end
 
-	pickers
-		.new({}, {
-			prompt_title = "Mark9 Jump",
-			finder = finders.new_table({
-				results = entries,
-				entry_maker = function(e)
-					return e
-				end,
-			}),
-			sorter = conf.generic_sorter({}),
-			attach_mappings = function(_, map)
-				actions.select_default:replace(function()
-					local entry = action_state.get_selected_entry()
-					actions.close()
-					M.jump_to_mark(entry.value)
-				end)
-				return true
-			end,
-		})
-		:find()
+	local buf = api.nvim_create_buf(false, true)
+	local lines = {}
+	for i, m in ipairs(marks) do
+		lines[i] = string.format("%s. %s:%d  %s", m.char, fn.fnamemodify(m.file, ":t"), m.line, m.text)
+	end
+	-- vertical padding
+	for _ = 1, Config.options.window_padding or 0 do
+		table.insert(lines, 1, "")
+		table.insert(lines, "")
+	end
+
+	-- horizontal padding
+	local hpad = string.rep(" ", Config.options.horizontal_padding or 0)
+	for i, line in ipairs(lines) do
+		lines[i] = hpad .. line .. hpad
+	end
+	api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+
+	local height = #lines + Config.options.window_padding * 2
+	local width = math.floor(vim.o.columns * (Config.options.window_width_percent or 0.4))
+
+	local row, col = 0, 0
+	local pad_h = Config.options.window_padding or 1
+	local pad_v = Config.options.window_padding or 1
+	local pos = Config.options.window_position or "center"
+
+	if pos == "top_left" then
+		row, col = pad_v, pad_h
+	elseif pos == "top_right" then
+		row = pad_v
+		col = vim.o.columns - width - pad_h
+	elseif pos == "bottom_left" then
+		row = vim.o.lines - height - pad_v
+		col = pad_h
+	elseif pos == "bottom_right" then
+		row = vim.o.lines - height - pad_v
+		col = vim.o.columns - width - pad_h
+	else -- default to center
+		row = math.floor((vim.o.lines - height) / 2)
+		col = math.floor((vim.o.columns - width) / 2)
+	end
+
+	local win = api.nvim_open_win(buf, true, {
+		relative = "editor",
+		row = row,
+		col = col,
+		width = width,
+		height = height,
+		style = "minimal",
+		border = "rounded",
+		title = "Marks",
+		title_pos = "center",
+	})
+
+	api.nvim_win_set_option(win, "cursorline", true)
+
+	local function refresh_menu()
+		lines = {}
+		for i, m in ipairs(marks) do
+			lines[i] = string.format("%s. %s:%d  %s", m.char, fn.fnamemodify(m.file, ":t"), m.line, m.text)
+		end
+		api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+	end
+
+	vim.keymap.set("n", "q", function()
+		if api.nvim_win_is_valid(win) then
+			api.nvim_win_close(win, true)
+		end
+	end, { buffer = buf })
+
+	vim.keymap.set("n", "<CR>", function()
+		local idx = api.nvim_win_get_cursor(win)[1]
+		local m = marks[idx]
+		if m then
+			api.nvim_win_close(win, true)
+			vim.cmd("edit " .. m.file)
+			api.nvim_win_set_cursor(0, { m.line, 0 })
+			vim.cmd("normal! zz")
+		end
+	end, { buffer = buf })
+
+	vim.keymap.set("n", "dd", function()
+		local idx = api.nvim_win_get_cursor(win)[1]
+		local m = marks[idx]
+		if m then
+			vim.cmd("delmarks " .. m.char)
+			local ext = extmarks_by_char[m.char]
+			if ext and api.nvim_buf_is_valid(ext.buf) then
+				pcall(api.nvim_buf_del_extmark, ext.buf, ns_id, ext.id)
+				fn.sign_unplace(sign_group, { buffer = ext.buf })
+			end
+			extmarks_by_char[m.char] = nil
+			table.remove(marks, idx)
+			table.remove(lines, idx)
+			vim.notify("[mark9] Deleted mark '" .. m.char .. "'", vim.log.levels.INFO)
+			M.save_marks()
+			vim.schedule(function()
+				if #marks == 0 and api.nvim_win_is_valid(win) then
+					api.nvim_win_close(win, true)
+				else
+					refresh_menu()
+				end
+			end)
+		end
+	end, { buffer = buf })
 end
 
--- Keymaps
-vim.keymap.set("n", "<leader>ha", M.add_mark, { desc = "Mark9: Add line mark" })
-vim.keymap.set("n", "<leader>hl", M.telescope_picker, { desc = "Mark9: List & jump" })
-vim.keymap.set("n", "<leader>hc", M.clear_all_marks, { desc = "Mark9: Clear all" })
-vim.keymap.set("n", "<leader>hL", M.telescope_picker, { desc = "Mark9: Telescope picker" })
+function M.telescope_picker()
+	if Config.options.use_telescope then
+		require("mark9.telescope").picker(true)
+	else
+		M.floating_menu()
+	end
+end
+
+function M._get_extmark(char)
+	local ext = extmarks_by_char[char]
+	if ext then
+		return { buf = ext.buf, id = ext.id, ns = ns_id }
+	end
+end
 
 return M

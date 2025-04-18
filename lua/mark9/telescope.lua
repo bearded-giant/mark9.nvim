@@ -1,48 +1,109 @@
--- mark9.lua (plugin-style module for line-level marks)
--- Features:
--- - 9 persistent file-level marks ('A'–'I')
--- - Gutter + virtual text icons
--- - Duplicate prevention
--- - FIFO cycling
--- - Project-scoped persistence (stored in ~/.local/share/nvim/mark9/)
--- - Telescope picker with preview
-
 local M = {}
-local Config = require("mark9.config")
 
+local Config = require("mark9.config")
+local Marks = require("mark9.marks")
 local api = vim.api
 local fn = vim.fn
-local ns_id = api.nvim_create_namespace("mark9")
-local mark_chars = Config.options.mark_chars
-local extmarks_by_char = {}
-local sign_group = "Mark9Signs"
-local sign_name = "Mark9Icon"
-local marks_cache = {}
 
-function M.setup()
-	fn.sign_define(sign_name, { text = Config.options.sign_icon, texthl = "DiagnosticHint" })
-
-	vim.api.nvim_create_user_command("Mark9Save", function()
-		M.save_marks()
-		vim.notify("[mark9] Project marks saved")
-	end, {})
-
-	vim.api.nvim_create_user_command("Mark9Load", function()
-		M.load_marks()
-		vim.notify("[mark9] Project marks loaded")
-	end, {})
-
-	vim.api.nvim_create_autocmd("VimEnter", {
-		callback = function()
-			M.load_marks()
-		end,
-	})
-
-	vim.api.nvim_create_autocmd("VimLeavePre", {
-		callback = function()
-			M.save_marks()
-		end,
-	})
+function M.get_marks()
+	local marks = {}
+	for _, char in ipairs(Config.options.mark_chars) do
+		local pos = api.nvim_get_mark(char, {})
+		if pos and pos[1] > 0 then
+			local file = fn.bufname(pos[4])
+			table.insert(marks, {
+				char = char,
+				value = char,
+				file = file,
+				lnum = pos[1],
+				col = pos[2],
+				display = string.format("%s: %s:%d", char, fn.fnamemodify(file, ":t"), pos[1]),
+			})
+		end
+	end
+	return marks
 end
 
--- (rest of file remains unchanged)
+function M.picker()
+	local pickers = require("telescope.pickers")
+	local finders = require("telescope.finders")
+	local previewers = require("telescope.previewers")
+	local conf = require("telescope.config").values
+	local actions = require("telescope.actions")
+	local action_state = require("telescope.actions.state")
+
+	local entries = M.get_marks()
+
+	pickers
+		.new({}, {
+			prompt_title = "Mark9 (Telescope)",
+			finder = finders.new_table({
+				results = entries,
+				entry_maker = function(entry)
+					return {
+						value = entry,
+						display = entry.display,
+						ordinal = entry.display,
+					}
+				end,
+			}),
+			sorter = conf.generic_sorter({}),
+			previewer = previewers.new_buffer_previewer({
+				define_preview = function(self, entry)
+					local val = entry.value
+					if fn.filereadable(val.file) == 1 then
+						local bufnr = fn.bufnr(val.file, true)
+						local lines = api.nvim_buf_get_lines(bufnr, 0, -1, false)
+						api.nvim_buf_set_lines(self.state.bufnr, 0, -1, false, lines)
+						api.nvim_buf_call(self.state.bufnr, function()
+							fn.cursor(val.lnum, 1)
+						end)
+					end
+				end,
+			}),
+			attach_mappings = function(prompt_bufnr, map)
+				local function get_selected()
+					return action_state.get_selected_entry()
+				end
+
+				actions.select_default:replace(function()
+					local selection = get_selected()
+					actions.close(prompt_bufnr)
+					if selection and selection.value then
+						local val = selection.value
+						vim.cmd("edit " .. val.file)
+						api.nvim_win_set_cursor(0, { val.lnum, val.col })
+						vim.cmd("normal! zz")
+					end
+				end)
+
+				map("n", "dd", function()
+					local selection = get_selected()
+					if not selection then
+						return
+					end
+					local char = selection.value.char
+
+					vim.cmd("delmarks " .. char)
+					local ext = Marks._get_extmark(char)
+					if ext and api.nvim_buf_is_valid(ext.buf) then
+						pcall(api.nvim_buf_del_extmark, ext.buf, ext.ns, ext.id)
+						fn.sign_unplace("Mark9Signs", { buffer = ext.buf })
+					end
+
+					vim.notify("[mark9] Deleted mark '" .. char .. "'", vim.log.levels.INFO)
+					actions.close(prompt_bufnr)
+
+					-- debounce refresh
+					vim.schedule(function()
+						M.picker()
+					end)
+				end)
+
+				return true
+			end,
+		})
+		:find()
+end
+
+return M

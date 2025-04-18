@@ -1,10 +1,9 @@
 # mark9.nvim
 
 **mark9.nvim** is a minimal, line-level Harpoon-style mark plugin for Neovim.
+This plugin bridges the simplicity of Harpoon with the line-level recall of marks.
 
-This is a solve I wanted which bridges the simplicity of Harpoon with the line-level recall of marks.
-
-`mark9` provides:
+## Features
 
 - Persistent line-level marks (limited to 9, file-scoped)
 - Gutter and virtual icons for visibility
@@ -12,8 +11,6 @@ This is a solve I wanted which bridges the simplicity of Harpoon with the line-l
 - Telescope integration with preview
 - FIFO cycling when all slots are full
 - Project-scoped persistence without polluting your repo
-
----
 
 ## Installation
 
@@ -42,9 +39,9 @@ This is a solve I wanted which bridges the simplicity of Harpoon with the line-l
 }
 ```
 
----
-
 ## Usage
+
+### Key Mappings
 
 | Mapping      | Description           |
 | ------------ | --------------------- |
@@ -53,37 +50,49 @@ This is a solve I wanted which bridges the simplicity of Harpoon with the line-l
 | `<leader>hL` | Open Telescope picker |
 | `<leader>hc` | Clear all marks       |
 
----
+### Commands
+
+| Command     | Description                         |
+| ----------- | ----------------------------------- |
+| `Mark9Save` | Manually save marks to project file |
+| `Mark9Load` | Manually load marks from file       |
+| `Mark9Menu` | Open floating mark menu             |
+| `Mark9List` | Open Telescope mark picker          |
 
 ## Configuration
 
-You can configure `mark9` via `setup({ ... })`:
+### Default Configuration
 
 ```lua
 require("mark9").setup({
-  use_telescope = true,         -- whether to use Telescope or fallback window
-  sign_icon = "*",              -- icon in signcolumn
-  virtual_text = true,         -- show inline icon at line
-  virtual_icon = "*",          -- text for inline icon
-  virtual_text_pos = "eol",   -- eol | overlay | right_align
-  window_padding = 1,          -- lines of padding for fallback list menu
+  -- UI Options
+  use_telescope = true,        -- Use Telescope for mark list (fallbacks to floating window if false)
+  sign_icon = "_",             -- Icon displayed in the gutter
+  virtual_text = true,         -- Show virtual inline icon at the mark line
+  virtual_icon = "_",          -- Symbol used for virtual text (if enabled)
+  virtual_text_pos = "eol",    -- Position: 'eol', 'overlay', or 'right_align'
+
+  -- Floating Window Options
+  horizontal_padding =  2    -- Horizontal padding in floating window
+  window_padding = 1,          -- Top and Bottom padding in floating window
+  window_position = "center",  -- 'center', 'top_left', 'top_right', 'bottom_left', 'bottom_right'
+  window_width_percent = 0.4,  -- Window width as percentage of editor width
+
+  -- Mark Configuration
+  mark_chars = { "A", "B", "C", "D", "E", "F", "G", "H", "I" } -- Characters used for marks
 })
 ```
-
----
 
 ## Persistence
 
 Mark files are automatically saved on exit and reloaded per project.
-They’re stored in:
+They're stored in:
 
 ```
 ~/.local/share/nvim/mark9/<sanitized-project-root>.json
 ```
 
 This avoids `.gitignore` issues and prevents shared state across projects.
-
----
 
 ## Roadmap
 
@@ -94,8 +103,6 @@ This avoids `.gitignore` issues and prevents shared state across projects.
 - [ ] Marks sorted and grouped by file in UI
 - [ ] Custom Telescope extension (optional config)
 - [ ] Optional help file for `:h mark9`
-
----
 
 ## License
 
