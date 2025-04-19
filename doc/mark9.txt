@@ -29,7 +29,8 @@ Using [Lazy.nvim](https://github.com/folke/lazy.nvim)
     require("mark9").setup({
       use_telescope = true, -- or false for the floating list
       sign_icon = "*",
-      virtual_text = true,
+      sign_enabled = true,
+      virtual_text_enabled = true,
       virtual_icon = "*",
       virtual_text_pos = "eol",
       window_padding = 1,
@@ -71,16 +72,17 @@ Default options for mark9.nvim:
 
 <lua
 {
-  use_telescope = true,            -- use Telescope for the mark list, fallback to floating window
+  use_telescope = false,           -- use Telescope for the mark list, fallback to floating window
   sign_icon = "📌",                -- icon in the gutter (sign column)
-  virtual_text = true,             -- show inline icon at the marked line
+  sign_enabled = true,             -- whether to show the icon in the gutter
+  virtual_text_enabled = false,    -- show inline icon at the marked line
   virtual_icon = "🔖",             -- icon for inline icon
-  virtual_text_pos = "eol",        -- 'eol', 'overlay', or 'right_align'
-  window_padding = 1,              -- vertical padding in floating window
+  virtual_text_pos = "eol",        -- 'eol', 'left_align', or 'right_align'
+  window_padding = 2,              -- vertical padding in floating window
   horizontal_padding = 2,          -- horizontal padding in floating window
   window_position = "center",      -- 'center', 'top_left', 'top_right', 'bottom_left', 'bottom_right'
   window_width_percent = 0.4,      -- floating window width as a percent of editor width
-  highlight_line = true,           -- highlight marked line
+  highlight_line_enabled = true,   -- highlight marked line
   highlight_group = "Visual",      -- highlight group used
   mark_chars = { "A", "B", "C", "D", "E", "F", "G", "H", "I" }, -- characters to use
 }

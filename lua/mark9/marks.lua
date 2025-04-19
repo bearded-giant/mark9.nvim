@@ -27,18 +27,26 @@ function M.setup()
 					local line = pos[1]
 					
 					local id = nil
-					if Config.options.virtual_text and api.nvim_buf_is_valid(buf) then
-						id = api.nvim_buf_set_extmark(buf, ns_id, line - 1, 0, {
-							virt_text = { { Config.options.virtual_icon, "DiagnosticHint" } },
-							virt_text_pos = Config.options.virtual_text_pos,
-						})
+					if Config.options.virtual_text_enabled and api.nvim_buf_is_valid(buf) then
+						local line_count = api.nvim_buf_line_count(buf)
+						if line > 0 and line <= line_count then
+							id = api.nvim_buf_set_extmark(buf, ns_id, line - 1, 0, {
+								virt_text = { { Config.options.virtual_icon, "DiagnosticHint" } },
+								virt_text_pos = Config.options.virtual_text_pos,
+							})
+						end
 					end
 					
 					if api.nvim_buf_is_valid(buf) then
-						fn.sign_place(0, sign_group, sign_name, buf, { lnum = line, priority = 10 })
-						
-						if Config.options.highlight_line then
-							api.nvim_buf_add_highlight(buf, ns_id, Config.options.highlight_group or "Visual", line - 1, 0, -1)
+						local line_count = api.nvim_buf_line_count(buf)
+						if line > 0 and line <= line_count then
+							if Config.options.sign_enabled then
+								fn.sign_place(0, sign_group, sign_name, buf, { lnum = line, priority = 10 })
+							end
+							
+							if Config.options.highlight_line_enabled then
+								api.nvim_buf_add_highlight(buf, ns_id, Config.options.highlight_group or "Visual", line - 1, 0, -1)
+							end
 						end
 					end
 					
@@ -71,7 +79,7 @@ function M.setup()
 		if ext and api.nvim_buf_is_valid(ext.buf) then
 			pcall(api.nvim_buf_del_extmark, ext.buf, ns_id, ext.id)
 			fn.sign_unplace(sign_group, { buffer = ext.buf })
-			if Config.options.highlight_line then
+			if Config.options.highlight_line_enabled then
 				api.nvim_buf_clear_namespace(ext.buf, ns_id, 0, -1)
 			end
 		end
@@ -92,7 +100,7 @@ function M.setup()
 			if ext and api.nvim_buf_is_valid(ext.buf) then
 				pcall(api.nvim_buf_del_extmark, ext.buf, ns_id, ext.id)
 				fn.sign_unplace(sign_group, { buffer = ext.buf })
-				if Config.options.highlight_line then
+				if Config.options.highlight_line_enabled then
 					api.nvim_buf_clear_namespace(ext.buf, ns_id, 0, -1)
 				end
 			end
@@ -132,16 +140,18 @@ function M.add_mark()
 	vim.cmd("mark " .. next)
 
 	local id = nil
-	if Config.options.virtual_text then
+	if Config.options.virtual_text_enabled then
 		id = api.nvim_buf_set_extmark(cur_buf, ns_id, cur_line - 1, 0, {
 			virt_text = { { Config.options.virtual_icon, "DiagnosticHint" } },
 			virt_text_pos = Config.options.virtual_text_pos,
 		})
 	end
 
-	fn.sign_place(0, sign_group, sign_name, cur_buf, { lnum = cur_line, priority = 10 })
+	if Config.options.sign_enabled then
+		fn.sign_place(0, sign_group, sign_name, cur_buf, { lnum = cur_line, priority = 10 })
+	end
 
-	if Config.options.highlight_line then
+	if Config.options.highlight_line_enabled then
 		api.nvim_buf_add_highlight(cur_buf, ns_id, Config.options.highlight_group or "Visual", cur_line - 1, 0, -1)
 	end
 
@@ -266,7 +276,7 @@ function M.floating_menu()
 			if ext and api.nvim_buf_is_valid(ext.buf) then
 				pcall(api.nvim_buf_del_extmark, ext.buf, ns_id, ext.id)
 				fn.sign_unplace(sign_group, { buffer = ext.buf })
-				if Config.options.highlight_line then
+				if Config.options.highlight_line_enabled then
 					api.nvim_buf_clear_namespace(ext.buf, ns_id, 0, -1)
 				end
 			end
@@ -324,17 +334,20 @@ function M.save_marks()
 		if pos and pos[1] > 0 then
 			local file = fn.bufname(pos[4])
 
-			if Config.options.highlight_line then
+			if Config.options.highlight_line_enabled then
 				local buf = fn.bufnr(file)
 				if api.nvim_buf_is_valid(buf) then
-					api.nvim_buf_add_highlight(
-						buf,
-						ns_id,
-						Config.options.highlight_group or "Visual",
-						pos[1] - 1,
-						0,
-						-1
-					)
+					local line_count = api.nvim_buf_line_count(buf)
+					if pos[1] > 0 and pos[1] <= line_count then
+						api.nvim_buf_add_highlight(
+							buf,
+							ns_id,
+							Config.options.highlight_group or "Visual",
+							pos[1] - 1,
+							0,
+							-1
+						)
+					end
 				end
 			end
 
