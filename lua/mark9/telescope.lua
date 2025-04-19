@@ -54,9 +54,9 @@ function M.picker()
 						value = entry,
 						display = function(e)
 							return displayer({
-								e.char,
-								fn.fnamemodify(e.file, ":t") .. ":" .. e.line,
-								e.text,
+								e.value.char,
+								fn.fnamemodify(e.value.file, ":t") .. ":" .. e.value.line,
+								e.value.text,
 							})
 						end,
 						ordinal = entry.file .. entry.text,
@@ -74,11 +74,27 @@ function M.picker()
 					if not api.nvim_buf_is_loaded(bufnr) then
 						vim.fn.bufload(bufnr)
 					end
+					
 					api.nvim_buf_set_option(self.state.bufnr, "filetype", vim.bo[bufnr].filetype)
+					
 					local lines = api.nvim_buf_get_lines(bufnr, 0, -1, false)
 					api.nvim_buf_set_lines(self.state.bufnr, 0, -1, false, lines)
+					
+					vim.api.nvim_win_set_option(self.state.winid, "number", true)
+					vim.api.nvim_win_set_option(self.state.winid, "relativenumber", false)
 					vim.api.nvim_win_set_cursor(self.state.winid, { lnum, 0 })
 					vim.api.nvim_win_set_option(self.state.winid, "cursorline", true)
+					
+					local ns_id = api.nvim_create_namespace("mark9_telescope_preview")
+					api.nvim_buf_clear_namespace(self.state.bufnr, ns_id, 0, -1)
+					api.nvim_buf_add_highlight(
+						self.state.bufnr,
+						ns_id,
+						Config.options.highlight_group,
+						lnum - 1,
+						0,
+						-1
+					)
 				end,
 			}),
 			attach_mappings = function(_, map)
