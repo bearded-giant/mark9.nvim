@@ -3,9 +3,9 @@ local M = {}
 -- default options
 M.options = {
 	use_telescope = false,
-	sign_icon = "*",
+	sign_icon = "📌",
 	virtual_text = true,
-	virtual_icon = "*",
+	virtual_icon = "🔖",
 	virtual_text_pos = "eol",
 	highlight_line = true,
 	highlight_group = "Visual",
