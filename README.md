@@ -72,7 +72,7 @@ Default options for mark9.nvim:
   use_telescope = true,            -- use Telescope for the mark list, fallback to floating window
   sign_icon = "📌",                -- icon in the gutter (sign column)
   virtual_text = true,             -- show inline icon at the marked line
-  virtual_icon = "🔖",             -- text for inline icon
+  virtual_icon = "🔖",             -- icon for inline icon
   virtual_text_pos = "eol",        -- 'eol', 'overlay', or 'right_align'
   window_padding = 1,              -- vertical padding in floating window
   horizontal_padding = 2,          -- horizontal padding in floating window
@@ -109,9 +109,9 @@ This avoids `.gitignore` issues and prevents shared state across projects.
 - [x] Gutter and virtual icon support
 - [x] Inline line highlighting
 - [x] Full config exposure
+- [x] Optional help file for `:h mark9`
 - [ ] Dot-repeatable mark navigation
 - [ ] Marks grouped by file in UI
-- [ ] Optional help file for `:h mark9`
 
 ---
 

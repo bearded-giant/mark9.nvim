@@ -17,6 +17,37 @@ function M.setup()
 		numhl = "",
 	})
 
+	for _, char in ipairs(Config.options.mark_chars) do
+		local pos = api.nvim_get_mark(char, {})
+		if pos and pos[1] > 0 then
+			local file = fn.bufname(pos[4])
+			if file ~= "" then
+				local buf = fn.bufnr(file)
+				if buf > 0 then
+					local line = pos[1]
+					
+					local id = nil
+					if Config.options.virtual_text and api.nvim_buf_is_valid(buf) then
+						id = api.nvim_buf_set_extmark(buf, ns_id, line - 1, 0, {
+							virt_text = { { Config.options.virtual_icon, "DiagnosticHint" } },
+							virt_text_pos = Config.options.virtual_text_pos,
+						})
+					end
+					
+					if api.nvim_buf_is_valid(buf) then
+						fn.sign_place(0, sign_group, sign_name, buf, { lnum = line, priority = 10 })
+						
+						if Config.options.highlight_line then
+							api.nvim_buf_add_highlight(buf, ns_id, Config.options.highlight_group or "Visual", line - 1, 0, -1)
+						end
+					end
+					
+					extmarks_by_char[char] = { buf = buf, id = id }
+				end
+			end
+		end
+	end
+
 	api.nvim_create_user_command("Mark9Add", function()
 		M.add_mark()
 	end, {})
