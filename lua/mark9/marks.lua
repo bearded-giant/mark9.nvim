@@ -12,16 +12,24 @@ local sign_name = "Mark9Icon"
 
 function M.setup()
 	fn.sign_define(sign_name, {
-		text = Config.options.sign_icon or "🔖",
+		text = Config.options.sign_icon or "*",
 		texthl = "DiagnosticHint",
 		numhl = "",
 	})
 
-	vim.api.nvim_create_user_command("Mark9List", function()
+	api.nvim_create_user_command("Mark9Add", function()
+		M.add_mark()
+	end, {})
+
+	api.nvim_create_user_command("Mark9List", function()
 		M.list_picker()
 	end, {})
 
-	vim.api.nvim_create_user_command("Mark9Delete", function(opts)
+	api.nvim_create_user_command("Mark9Telescope", function()
+		M.telescope_picker()
+	end, {})
+
+	api.nvim_create_user_command("Mark9Delete", function(opts)
 		local char = opts.args:upper()
 		if not vim.tbl_contains(Config.options.mark_chars, char) then
 			vim.notify("[mark9] Invalid mark id: " .. char, vim.log.levels.WARN)
@@ -46,7 +54,7 @@ function M.setup()
 		end,
 	})
 
-	vim.api.nvim_create_user_command("Mark9ClearAll", function()
+	api.nvim_create_user_command("Mark9ClearAll", function()
 		for _, char in ipairs(Config.options.mark_chars) do
 			vim.cmd("delmarks " .. char)
 			local ext = extmarks_by_char[char]
@@ -169,7 +177,6 @@ function M.floating_menu()
 	local height = #lines
 	local width = math.floor(vim.o.columns * (Config.options.window_width_percent or 0.4))
 	local row, col = 0, 0
-
 	local pos = Config.options.window_position or "center"
 	if pos == "top_left" then
 		row = vp
@@ -239,8 +246,40 @@ function M.floating_menu()
 			vim.schedule(function()
 				if #marks == 0 and api.nvim_win_is_valid(win) then
 					api.nvim_win_close(win, true)
-				else
-					M.floating_menu()
+					return
+				end
+
+				local updated_lines = {}
+				for _, mark in ipairs(marks) do
+					table.insert(
+						updated_lines,
+						string.format(
+							"%s - %s:%d  %s",
+							mark.char,
+							fn.fnamemodify(mark.file, ":t"),
+							mark.line,
+							mark.text
+						)
+					)
+				end
+
+				-- Apply vertical and horizontal padding again
+				for _ = 1, vp do
+					table.insert(updated_lines, 1, "")
+				end
+				for _ = 1, vp do
+					table.insert(updated_lines, "")
+				end
+
+				if hp > 0 then
+					local pad = string.rep(" ", hp)
+					for i, l in ipairs(updated_lines) do
+						updated_lines[i] = pad .. l .. pad
+					end
+				end
+
+				if api.nvim_buf_is_valid(buf) then
+					api.nvim_buf_set_lines(buf, 0, -1, false, updated_lines)
 				end
 			end)
 		end

@@ -1,101 +1,98 @@
 local pickers = require("telescope.pickers")
 local finders = require("telescope.finders")
-local previewers = require("telescope.previewers")
 local conf = require("telescope.config").values
+local previewers = require("telescope.previewers")
 local entry_display = require("telescope.pickers.entry_display")
 local Config = require("mark9.config")
-
 local api = vim.api
 local fn = vim.fn
 
 local M = {}
 
-function M.picker()
+local function get_marks()
 	local marks = {}
-
 	for _, char in ipairs(Config.options.mark_chars) do
 		local pos = api.nvim_get_mark(char, {})
 		if pos and pos[1] > 0 then
 			local file = fn.bufname(pos[4])
-			local line = pos[1]
-			local col = pos[2]
-			local text = ""
-			pcall(function()
-				text = api.nvim_buf_get_lines(fn.bufnr(file), line - 1, line, false)[1] or ""
-			end)
 			table.insert(marks, {
 				char = char,
 				file = file,
-				file_short = fn.fnamemodify(file, ":."),
-				line = line,
-				col = col,
-				text = text,
+				line = pos[1],
+				col = pos[2],
+				text = api.nvim_buf_get_lines(fn.bufnr(file), pos[1] - 1, pos[1], false)[1] or "",
 			})
 		end
 	end
+	return marks
+end
 
-	local displayer = entry_display.create({
-		separator = " ",
-		items = {
-			{ width = 3 }, -- slot
-			{ width = 30 }, -- file
-			{ width = 5 }, -- line number
-			{ remaining = true }, -- text
-		},
-	})
+function M.picker()
+	local marks = get_marks()
 
-	local function make_display(entry)
-		return displayer({
-			entry.char,
-			entry.file_short,
-			tostring(entry.line),
-			entry.text,
-		})
-	end
-
-	local function preview_command(entry, bufnr, _)
-		if not entry.file or not fn.filereadable(entry.file) then
-			return
-		end
-
-		local lines = {}
-		pcall(function()
-			lines = api.nvim_buf_get_lines(fn.bufnr(entry.file), 0, -1, false)
-		end)
-		api.nvim_buf_set_lines(bufnr, 0, -1, false, lines)
-
-		vim.schedule(function()
-			local win = fn.bufwinid(bufnr)
-			if win ~= -1 and api.nvim_win_is_valid(win) then
-				api.nvim_win_set_cursor(win, { entry.line, 0 })
-				api.nvim_win_set_option(win, "number", true)
-				api.nvim_win_set_option(win, "relativenumber", false)
-				api.nvim_win_set_option(win, "cursorline", true)
-			end
-		end)
+	if #marks == 0 then
+		vim.notify("[mark9] No marks to show", vim.log.levels.INFO)
+		return
 	end
 
 	pickers
 		.new({}, {
-			prompt_title = "Mark9 Marks",
+			prompt_title = "mark9",
 			finder = finders.new_table({
 				results = marks,
 				entry_maker = function(entry)
+					local displayer = entry_display.create({
+						separator = " ",
+						items = {
+							{ width = 3 },
+							{ width = 20 },
+							{ remaining = true },
+						},
+					})
+
 					return {
 						value = entry,
-						display = make_display,
-						ordinal = entry.text,
+						display = function(e)
+							return displayer({
+								e.char,
+								fn.fnamemodify(e.file, ":t") .. ":" .. e.line,
+								e.text,
+							})
+						end,
+						ordinal = entry.file .. entry.text,
 						filename = entry.file,
 						lnum = entry.line,
-						file = entry.file,
-						line = entry.line,
 					}
 				end,
 			}),
 			sorter = conf.generic_sorter({}),
 			previewer = previewers.new_buffer_previewer({
-				define_preview = preview_command,
+				define_preview = function(self, entry)
+					local filepath = entry.filename
+					local lnum = entry.lnum
+					local bufnr = fn.bufnr(filepath, true)
+					if not api.nvim_buf_is_loaded(bufnr) then
+						vim.fn.bufload(bufnr)
+					end
+					api.nvim_buf_set_option(self.state.bufnr, "filetype", vim.bo[bufnr].filetype)
+					local lines = api.nvim_buf_get_lines(bufnr, 0, -1, false)
+					api.nvim_buf_set_lines(self.state.bufnr, 0, -1, false, lines)
+					vim.api.nvim_win_set_cursor(self.state.winid, { lnum, 0 })
+					vim.api.nvim_win_set_option(self.state.winid, "cursorline", true)
+				end,
 			}),
+			attach_mappings = function(_, map)
+				map("i", "dd", function(prompt_bufnr)
+					local selection = require("telescope.actions.state").get_selected_entry()
+					local actions = require("telescope.actions")
+					if selection then
+						vim.cmd("delmarks " .. selection.value.char)
+						actions.close(prompt_bufnr)
+						vim.notify("[mark9] Deleted mark '" .. selection.value.char .. "'", vim.log.levels.INFO)
+					end
+				end)
+				return true
+			end,
 		})
 		:find()
 end
