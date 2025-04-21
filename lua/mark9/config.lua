@@ -18,7 +18,9 @@ M.options = {
 }
 
 function M.setup(opts)
-	M.options = vim.tbl_deep_extend("force", M.options, opts or {})
+	local merged_opts = vim.tbl_deep_extend("force", M.options, opts or {})
+	merged_opts.use_telescope = false
+	M.options = merged_opts
 end
 
 return M

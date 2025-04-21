@@ -13,16 +13,18 @@ function M.setup(opts)
 end
 
 function M.menu()
-	if require("mark9.config").options.use_telescope then
-		local ok, telescope = pcall(require, "mark9.telescope")
-		if ok then
-			telescope.picker()
-		else
-			require("mark9.marks").floating_menu()
-		end
-	else
-		require("mark9.marks").floating_menu()
-	end
+	-- if require("mark9.config").options.use_telescope then
+	--     local ok, telescope = pcall(require, "mark9.telescope")
+	--     if ok then
+	--         telescope.picker()
+	--     else
+	--         require("mark9.marks").floating_menu()
+	--     end
+	-- else
+	--     require("mark9.marks").floating_menu()
+	-- end
+	
+	require("mark9.marks").floating_menu()
 end
 
 return M

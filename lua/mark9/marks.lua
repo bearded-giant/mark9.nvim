@@ -72,18 +72,20 @@ function M.setup()
 	end, {})
 
 	api.nvim_create_user_command("Mark9Telescope", function()
-		if not Config.options.use_telescope then
-			vim.notify("[mark9] Telescope is disabled. Enable with use_telescope=true or use Mark9List instead.", vim.log.levels.WARN)
-			return
-		end
+		-- if not Config.options.use_telescope then
+		--     vim.notify("[mark9] Telescope is disabled. Enable with use_telescope=true or use Mark9List instead.", vim.log.levels.WARN)
+		--     return
+		-- end
+		-- 
+		-- local ok = pcall(require, "telescope")
+		-- if not ok then
+		--     vim.notify("[mark9] Telescope plugin is not available. Please install telescope.nvim", vim.log.levels.ERROR)
+		--     return
+		-- end
+		-- 
+		-- M.telescope_picker()
 		
-		local ok = pcall(require, "telescope")
-		if not ok then
-			vim.notify("[mark9] Telescope plugin is not available. Please install telescope.nvim", vim.log.levels.ERROR)
-			return
-		end
-		
-		M.telescope_picker()
+		M.floating_menu()
 	end, {})
 
 	api.nvim_create_user_command("Mark9Delete", function(opts)
@@ -179,25 +181,29 @@ function M.add_mark()
 end
 
 function M.telescope_picker()
-	local original_setting = Config.options.use_telescope
-	local ok, telescope = pcall(require, "mark9.telescope")
-	if ok then
-		telescope.picker()
-	else
-		vim.notify("[mark9] Telescope module not available", vim.log.levels.WARN)
-		M.floating_menu()
-	end
-	Config.options.use_telescope = original_setting
+	-- local original_setting = Config.options.use_telescope
+	-- local ok, telescope = pcall(require, "mark9.telescope")
+	-- if ok then
+	--     telescope.picker()
+	-- else
+	--     vim.notify("[mark9] Telescope module not available", vim.log.levels.WARN)
+	--     M.floating_menu()
+	-- end
+	-- Config.options.use_telescope = original_setting
+	
+	M.floating_menu()
 end
 
 function M.list_picker()
-	local use_telescope = Config.options.use_telescope
-	if use_telescope then
-		M.telescope_picker()
-	else
-		M.floating_menu()
-	end
-	Config.options.use_telescope = use_telescope
+	-- local use_telescope = Config.options.use_telescope
+	-- if use_telescope then
+	--     M.telescope_picker()
+	-- else
+	--     M.floating_menu()
+	-- end
+	-- Config.options.use_telescope = use_telescope
+	
+	M.floating_menu()
 end
 
 function M.floating_menu()
