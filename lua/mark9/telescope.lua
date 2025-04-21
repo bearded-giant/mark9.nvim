@@ -14,14 +14,27 @@ local function get_marks()
 	for _, char in ipairs(Config.options.mark_chars) do
 		local pos = api.nvim_get_mark(char, {})
 		if pos and pos[1] > 0 then
-			local file = fn.bufname(pos[4])
+			local file = fn.bufname(pos[4]) or ""
+			local display_file = file
+			if file == "" then
+				display_file = "<Unknown File>"
+				file = display_file  -- Use a placeholder so it can be displayed
+			end
+			
 			local text = ""
 			pcall(function()
-				if file ~= "" and fn.bufnr(file) > 0 then
-					text = api.nvim_buf_get_lines(fn.bufnr(file), pos[1] - 1, pos[1], false)[1] or ""
-					text = text:gsub("^%s+", "") -- Strip leading whitespace
+				if file ~= "<Unknown File>" and fn.bufnr(file) > 0 then
+					local bufnr = fn.bufnr(file)
+					if api.nvim_buf_is_valid(bufnr) then
+						local line_count = api.nvim_buf_line_count(bufnr)
+						if pos[1] > 0 and pos[1] <= line_count then
+							text = api.nvim_buf_get_lines(bufnr, pos[1] - 1, pos[1], false)[1] or ""
+							text = text:gsub("^%s+", "") -- Strip leading whitespace
+						end
+					end
 				end
 			end)
+			
 			table.insert(marks, {
 				char = char,
 				file = file,
@@ -77,31 +90,61 @@ function M.picker()
 				define_preview = function(self, entry)
 					local filepath = entry.filename
 					local lnum = entry.lnum
-					local bufnr = fn.bufnr(filepath, true)
-					if not api.nvim_buf_is_loaded(bufnr) then
-						vim.fn.bufload(bufnr)
+					
+					-- Check if file exists and can be loaded
+					if filepath == "<Unknown File>" or filepath:match("^<.*>$") then
+						api.nvim_buf_set_lines(self.state.bufnr, 0, -1, false, {"File not available"})
+						return
 					end
 					
-					api.nvim_buf_set_option(self.state.bufnr, "filetype", vim.bo[bufnr].filetype)
+					local bufnr = fn.bufnr(filepath, true)
+					if bufnr < 0 then
+						api.nvim_buf_set_lines(self.state.bufnr, 0, -1, false, {"File not loaded in editor"})
+						return
+					end
 					
-					local lines = api.nvim_buf_get_lines(bufnr, 0, -1, false)
+					if not api.nvim_buf_is_loaded(bufnr) then
+						local ok = pcall(vim.fn.bufload, bufnr)
+						if not ok then
+							api.nvim_buf_set_lines(self.state.bufnr, 0, -1, false, {"Cannot load file"})
+							return
+						end
+					end
+					
+					pcall(api.nvim_buf_set_option, self.state.bufnr, "filetype", vim.bo[bufnr].filetype)
+					
+					local ok, lines = pcall(api.nvim_buf_get_lines, bufnr, 0, -1, false)
+					if not ok or #lines == 0 then
+						api.nvim_buf_set_lines(self.state.bufnr, 0, -1, false, {"File is empty or cannot be read"})
+						return
+					end
+					
 					api.nvim_buf_set_lines(self.state.bufnr, 0, -1, false, lines)
 					
 					vim.api.nvim_win_set_option(self.state.winid, "number", true)
 					vim.api.nvim_win_set_option(self.state.winid, "relativenumber", false)
-					vim.api.nvim_win_set_cursor(self.state.winid, { lnum, 0 })
+					
+					local line_count = #lines
+					if line_count > 0 then
+						local target_line = math.min(lnum, line_count)
+						pcall(vim.api.nvim_win_set_cursor, self.state.winid, { target_line, 0 })
+					end
+					
 					vim.api.nvim_win_set_option(self.state.winid, "cursorline", true)
 					
 					local ns_id = api.nvim_create_namespace("mark9_telescope_preview")
 					api.nvim_buf_clear_namespace(self.state.bufnr, ns_id, 0, -1)
-					api.nvim_buf_add_highlight(
-						self.state.bufnr,
-						ns_id,
-						Config.options.highlight_group,
-						lnum - 1,
-						0,
-						-1
-					)
+					
+					if lnum > 0 and lnum <= line_count then
+						api.nvim_buf_add_highlight(
+							self.state.bufnr,
+							ns_id,
+							Config.options.highlight_group,
+							lnum - 1,
+							0,
+							-1
+						)
+					end
 				end,
 			}),
 			attach_mappings = function(_, map)

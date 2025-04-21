@@ -10,12 +10,63 @@ local extmarks_by_char = {}
 local sign_group = "Mark9Signs"
 local sign_name = "Mark9Icon"
 
+function M.load_marks()
+	local root = vim.fn.getcwd()
+	local hash = vim.fn.fnamemodify(root, ":p"):gsub("/", "%%")
+	local path = vim.fn.stdpath("data") .. "/mark9/" .. hash .. ".json"
+	
+	local fd, err = uv.fs_open(path, "r", 420)
+	if not fd then
+		return
+	end
+	
+	local stat = uv.fs_fstat(fd)
+	if not stat then
+		uv.fs_close(fd)
+		return
+	end
+	
+	local data = uv.fs_read(fd, stat.size, 0)
+	uv.fs_close(fd)
+	
+	if not data then
+		return
+	end
+	
+	local ok, marks = pcall(vim.json.decode, data)
+	if not ok or not marks then
+		return
+	end
+	
+	for _, mark in ipairs(marks) do
+		local char = mark.char
+		local file = mark.file or ""
+		local line = mark.line
+		
+		if char and file ~= "" and line and line > 0 then
+			pcall(function()
+				local buf = fn.bufnr(file)
+				if buf <= 0 then
+					buf = vim.fn.bufadd(file)
+				end
+				
+				if buf > 0 then
+					vim.cmd(string.format("mark %s %s", char, file))
+					pcall(vim.api.nvim_buf_set_mark, buf, char, line, mark.col or 0, {})
+				end
+			end)
+		end
+	end
+end
+
 function M.setup()
 	fn.sign_define(sign_name, {
 		text = Config.options.sign_icon or "*",
 		texthl = "DiagnosticHint",
 		numhl = "",
 	})
+	
+	M.load_marks()
 
 	for _, char in ipairs(Config.options.mark_chars) do
 		local pos = api.nvim_get_mark(char, {})
@@ -73,19 +124,22 @@ function M.setup()
 
 	api.nvim_create_user_command("Mark9Telescope", function()
 		-- if not Config.options.use_telescope then
-		--     vim.notify("[mark9] Telescope is disabled. Enable with use_telescope=true or use Mark9List instead.", vim.log.levels.WARN)
-		--     return
+		-- 	vim.notify(
+		-- 		"[mark9] Telescope is disabled. Enable with use_telescope=true or use Mark9List instead.",
+		-- 		vim.log.levels.WARN
+		-- 	)
+		-- 	return
 		-- end
-		-- 
-		-- local ok = pcall(require, "telescope")
-		-- if not ok then
-		--     vim.notify("[mark9] Telescope plugin is not available. Please install telescope.nvim", vim.log.levels.ERROR)
-		--     return
-		-- end
-		-- 
-		-- M.telescope_picker()
-		
-		M.floating_menu()
+
+		local ok = pcall(require, "telescope")
+		if not ok then
+			vim.notify("[mark9] Telescope plugin is not available. Please install telescope.nvim", vim.log.levels.ERROR)
+			return
+		end
+
+		M.telescope_picker()
+
+		-- M.floating_menu()
 	end, {})
 
 	api.nvim_create_user_command("Mark9Delete", function(opts)
@@ -181,29 +235,29 @@ function M.add_mark()
 end
 
 function M.telescope_picker()
-	-- local original_setting = Config.options.use_telescope
-	-- local ok, telescope = pcall(require, "mark9.telescope")
+	local original_setting = Config.options.use_telescope
+	local ok, telescope = pcall(require, "mark9.telescope")
 	-- if ok then
-	--     telescope.picker()
+	telescope.picker()
 	-- else
-	--     vim.notify("[mark9] Telescope module not available", vim.log.levels.WARN)
-	--     M.floating_menu()
+	-- 	vim.notify("[mark9] Telescope module not available", vim.log.levels.WARN)
+	-- 	M.floating_menu()
 	-- end
-	-- Config.options.use_telescope = original_setting
-	
-	M.floating_menu()
+	Config.options.use_telescope = original_setting
+
+	-- M.floating_menu()
 end
 
 function M.list_picker()
-	-- local use_telescope = Config.options.use_telescope
-	-- if use_telescope then
-	--     M.telescope_picker()
-	-- else
-	--     M.floating_menu()
-	-- end
-	-- Config.options.use_telescope = use_telescope
-	
-	M.floating_menu()
+	local use_telescope = Config.options.use_telescope
+	if use_telescope then
+		M.telescope_picker()
+	else
+		M.floating_menu()
+	end
+	Config.options.use_telescope = use_telescope
+
+	-- M.floating_menu()
 end
 
 function M.floating_menu()
@@ -211,7 +265,12 @@ function M.floating_menu()
 	for _, char in ipairs(Config.options.mark_chars) do
 		local pos = api.nvim_get_mark(char, {})
 		if pos and pos[1] > 0 then
-			local file = fn.bufname(pos[4])
+			local file = fn.bufname(pos[4]) or ""
+			local display_file = file
+			if file == "" then
+				display_file = "<Unknown File>"
+			end
+			
 			local line_text = ""
 			pcall(function()
 				if file ~= "" and fn.bufnr(file) > 0 then
@@ -228,6 +287,7 @@ function M.floating_menu()
 			table.insert(marks, {
 				char = char,
 				file = file,
+				display_file = display_file,
 				line = pos[1],
 				text = line_text,
 			})
@@ -237,7 +297,8 @@ function M.floating_menu()
 	local buf = api.nvim_create_buf(false, true)
 	local lines = {}
 	for _, m in ipairs(marks) do
-		table.insert(lines, string.format("%s - %s:%d %s", m.char, fn.fnamemodify(m.file, ":t"), m.line, m.text))
+		local filename = m.file ~= "" and fn.fnamemodify(m.file, ":t") or "<Unknown>"
+		table.insert(lines, string.format("%s - %s:%d %s", m.char, filename, m.line, m.text))
 	end
 
 	local vp = Config.options.window_padding or 0
@@ -337,13 +398,7 @@ function M.floating_menu()
 				for _, mark in ipairs(marks) do
 					table.insert(
 						updated_lines,
-						string.format(
-							"%s - %s:%d %s",
-							mark.char,
-							fn.fnamemodify(mark.file, ":t"),
-							mark.line,
-							mark.text
-						)
+						string.format("%s - %s:%d %s", mark.char, fn.fnamemodify(mark.file, ":t"), mark.line, mark.text)
 					)
 				end
 
