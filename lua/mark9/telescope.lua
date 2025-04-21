@@ -15,12 +15,19 @@ local function get_marks()
 		local pos = api.nvim_get_mark(char, {})
 		if pos and pos[1] > 0 then
 			local file = fn.bufname(pos[4])
+			local text = ""
+			pcall(function()
+				if file ~= "" and fn.bufnr(file) > 0 then
+					text = api.nvim_buf_get_lines(fn.bufnr(file), pos[1] - 1, pos[1], false)[1] or ""
+					text = text:gsub("^%s+", "") -- Strip leading whitespace
+				end
+			end)
 			table.insert(marks, {
 				char = char,
 				file = file,
 				line = pos[1],
 				col = pos[2],
-				text = api.nvim_buf_get_lines(fn.bufnr(file), pos[1] - 1, pos[1], false)[1] or "",
+				text = text,
 			})
 		end
 	end

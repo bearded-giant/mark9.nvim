@@ -72,11 +72,18 @@ function M.setup()
 	end, {})
 
 	api.nvim_create_user_command("Mark9Telescope", function()
-		if Config.options.use_telescope then
-			M.telescope_picker()
-		else
+		if not Config.options.use_telescope then
 			vim.notify("[mark9] Telescope is disabled. Enable with use_telescope=true or use Mark9List instead.", vim.log.levels.WARN)
+			return
 		end
+		
+		local ok = pcall(require, "telescope")
+		if not ok then
+			vim.notify("[mark9] Telescope plugin is not available. Please install telescope.nvim", vim.log.levels.ERROR)
+			return
+		end
+		
+		M.telescope_picker()
 	end, {})
 
 	api.nvim_create_user_command("Mark9Delete", function(opts)
@@ -172,15 +179,25 @@ function M.add_mark()
 end
 
 function M.telescope_picker()
-	require("mark9.telescope").picker()
+	local original_setting = Config.options.use_telescope
+	local ok, telescope = pcall(require, "mark9.telescope")
+	if ok then
+		telescope.picker()
+	else
+		vim.notify("[mark9] Telescope module not available", vim.log.levels.WARN)
+		M.floating_menu()
+	end
+	Config.options.use_telescope = original_setting
 end
 
 function M.list_picker()
-	if Config.options.use_telescope then
+	local use_telescope = Config.options.use_telescope
+	if use_telescope then
 		M.telescope_picker()
 	else
 		M.floating_menu()
 	end
+	Config.options.use_telescope = use_telescope
 end
 
 function M.floating_menu()
@@ -191,7 +208,16 @@ function M.floating_menu()
 			local file = fn.bufname(pos[4])
 			local line_text = ""
 			pcall(function()
-				line_text = api.nvim_buf_get_lines(fn.bufnr(file), pos[1] - 1, pos[1], false)[1] or ""
+				if file ~= "" and fn.bufnr(file) > 0 then
+					local bufnr = fn.bufnr(file)
+					if api.nvim_buf_is_valid(bufnr) then
+						local line_count = api.nvim_buf_line_count(bufnr)
+						if pos[1] > 0 and pos[1] <= line_count then
+							line_text = api.nvim_buf_get_lines(bufnr, pos[1] - 1, pos[1], false)[1] or ""
+							line_text = line_text:gsub("^%s+", "")
+						end
+					end
+				end
 			end)
 			table.insert(marks, {
 				char = char,
@@ -205,7 +231,7 @@ function M.floating_menu()
 	local buf = api.nvim_create_buf(false, true)
 	local lines = {}
 	for _, m in ipairs(marks) do
-		table.insert(lines, string.format("%s - %s:%d  %s", m.char, fn.fnamemodify(m.file, ":t"), m.line, m.text))
+		table.insert(lines, string.format("%s - %s:%d %s", m.char, fn.fnamemodify(m.file, ":t"), m.line, m.text))
 	end
 
 	local vp = Config.options.window_padding or 0
@@ -306,7 +332,7 @@ function M.floating_menu()
 					table.insert(
 						updated_lines,
 						string.format(
-							"%s - %s:%d  %s",
+							"%s - %s:%d %s",
 							mark.char,
 							fn.fnamemodify(mark.file, ":t"),
 							mark.line,
