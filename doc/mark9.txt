@@ -26,16 +26,7 @@ Using [Lazy.nvim](https://github.com/folke/lazy.nvim)
   "bearded-giant/mark9.nvim",
   lazy = false, -- ensures it loads on startup, required for early mark access
   config = function()
-    require("mark9").setup({
-      use_telescope = true, -- or false for the floating list
-      sign_icon = "*",
-      sign_enabled = true,
-      virtual_text_enabled = true,
-      virtual_icon = "*",
-      virtual_text_pos = "eol",
-      window_padding = 1,
-      horizontal_padding = 2,
-    })
+    require("mark9").setup({})
   end,
   keys = {
     { "<leader>ha", function() require("mark9.marks").add_mark() end, desc = "Add mark" },
@@ -72,11 +63,11 @@ Default options for mark9.nvim:
 
 <lua
 {
-  use_telescope = false,           -- use Telescope for the mark list, fallback to floating window
-  sign_icon = "📌",                -- icon in the gutter (sign column)
+  use_telescope = false,           -- use Telescope for the mark list, default is floating window
+  sign_icon = "➤",                 -- icon in the gutter (sign column)
   sign_enabled = true,             -- whether to show the icon in the gutter
   virtual_text_enabled = false,    -- show inline icon at the marked line
-  virtual_icon = "🔖",             -- icon for inline icon
+  virtual_icon = "◆",              -- icon for inline icon
   virtual_text_pos = "eol",        -- 'eol', 'left_align', or 'right_align'
   window_padding = 2,              -- vertical padding in floating window
   horizontal_padding = 2,          -- horizontal padding in floating window

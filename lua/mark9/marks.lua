@@ -25,7 +25,7 @@ function M.setup()
 				local buf = fn.bufnr(file)
 				if buf > 0 then
 					local line = pos[1]
-					
+
 					local id = nil
 					if Config.options.virtual_text_enabled and api.nvim_buf_is_valid(buf) then
 						local line_count = api.nvim_buf_line_count(buf)
@@ -36,20 +36,27 @@ function M.setup()
 							})
 						end
 					end
-					
+
 					if api.nvim_buf_is_valid(buf) then
 						local line_count = api.nvim_buf_line_count(buf)
 						if line > 0 and line <= line_count then
 							if Config.options.sign_enabled then
 								fn.sign_place(0, sign_group, sign_name, buf, { lnum = line, priority = 10 })
 							end
-							
+
 							if Config.options.highlight_line_enabled then
-								api.nvim_buf_add_highlight(buf, ns_id, Config.options.highlight_group or "Visual", line - 1, 0, -1)
+								api.nvim_buf_add_highlight(
+									buf,
+									ns_id,
+									Config.options.highlight_group or "Visual",
+									line - 1,
+									0,
+									-1
+								)
 							end
 						end
 					end
-					
+
 					extmarks_by_char[char] = { buf = buf, id = id }
 				end
 			end

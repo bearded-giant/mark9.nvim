@@ -3,11 +3,11 @@ local M = {}
 -- default options
 M.options = {
 	use_telescope = false,
-	sign_icon = "📌",
+	sign_icon = "➤",
 	sign_enabled = true,
 	virtual_text_enabled = false,
-	virtual_icon = "🔖",
-	virtual_text_pos = "eol",
+	virtual_icon = "◆", -- ◆ | ◇
+	virtual_text_pos = "eol", -- 'eol', 'left_align', or 'right_align'
 	highlight_line_enabled = true,
 	highlight_group = "Visual",
 	horizontal_padding = 2,
