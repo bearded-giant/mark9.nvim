@@ -72,7 +72,11 @@ function M.setup()
 	end, {})
 
 	api.nvim_create_user_command("Mark9Telescope", function()
-		M.telescope_picker()
+		if Config.options.use_telescope then
+			M.telescope_picker()
+		else
+			vim.notify("[mark9] Telescope is disabled. Enable with use_telescope=true or use Mark9List instead.", vim.log.levels.WARN)
+		end
 	end, {})
 
 	api.nvim_create_user_command("Mark9Delete", function(opts)
