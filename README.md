@@ -61,7 +61,9 @@ Default options for mark9.nvim:
 
 ```lua
 {
-  use_telescope = false,           -- use Telescope for the mark list, default is floating window
+  -- Note: Mark9Telescope will display directly in telescope regardless of this setting
+  use_telescope = false,           -- use Telescope for the Mark9List command, default is floating window
+
   sign_icon = "➤",                 -- icon in the gutter (sign column)
   sign_enabled = true,             -- whether to show the icon in the gutter
   virtual_text_enabled = false,    -- show inline icon at the marked line
@@ -81,7 +83,7 @@ Default options for mark9.nvim:
 
 ## Persistence
 
-Mark files are automatically saved on exit and reloaded per project.
+Mark files are automatically saved on exit and reloaded per project on startup.
 They’re stored in:
 
 ```
@@ -89,6 +91,7 @@ They’re stored in:
 ```
 
 This avoids `.gitignore` issues and prevents shared state across projects.
+When you start Neovim in a project directory, any previously saved marks will be automatically restored.
 
 ---
 
