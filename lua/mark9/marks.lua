@@ -14,42 +14,42 @@ function M.load_marks()
 	local root = vim.fn.getcwd()
 	local hash = vim.fn.fnamemodify(root, ":p"):gsub("/", "%%")
 	local path = vim.fn.stdpath("data") .. "/mark9/" .. hash .. ".json"
-	
+
 	local fd, err = uv.fs_open(path, "r", 420)
 	if not fd then
 		return
 	end
-	
+
 	local stat = uv.fs_fstat(fd)
 	if not stat then
 		uv.fs_close(fd)
 		return
 	end
-	
+
 	local data = uv.fs_read(fd, stat.size, 0)
 	uv.fs_close(fd)
-	
+
 	if not data then
 		return
 	end
-	
+
 	local ok, marks = pcall(vim.json.decode, data)
 	if not ok or not marks then
 		return
 	end
-	
+
 	for _, mark in ipairs(marks) do
 		local char = mark.char
 		local file = mark.file or ""
 		local line = mark.line
-		
+
 		if char and file ~= "" and line and line > 0 then
 			pcall(function()
 				local buf = fn.bufnr(file)
 				if buf <= 0 then
 					buf = vim.fn.bufadd(file)
 				end
-				
+
 				if buf > 0 then
 					vim.cmd(string.format("mark %s %s", char, file))
 					pcall(vim.api.nvim_buf_set_mark, buf, char, line, mark.col or 0, {})
@@ -65,7 +65,7 @@ function M.setup()
 		texthl = "DiagnosticHint",
 		numhl = "",
 	})
-	
+
 	M.load_marks()
 
 	for _, char in ipairs(Config.options.mark_chars) do
@@ -138,8 +138,6 @@ function M.setup()
 		end
 
 		M.telescope_picker()
-
-		-- M.floating_menu()
 	end, {})
 
 	api.nvim_create_user_command("Mark9Delete", function(opts)
@@ -237,15 +235,13 @@ end
 function M.telescope_picker()
 	local original_setting = Config.options.use_telescope
 	local ok, telescope = pcall(require, "mark9.telescope")
-	-- if ok then
-	telescope.picker()
-	-- else
-	-- 	vim.notify("[mark9] Telescope module not available", vim.log.levels.WARN)
-	-- 	M.floating_menu()
-	-- end
+	if ok then
+		telescope.picker()
+	else
+		vim.notify("[mark9] Telescope module not available", vim.log.levels.WARN)
+		M.floating_menu()
+	end
 	Config.options.use_telescope = original_setting
-
-	-- M.floating_menu()
 end
 
 function M.list_picker()
@@ -256,8 +252,6 @@ function M.list_picker()
 		M.floating_menu()
 	end
 	Config.options.use_telescope = use_telescope
-
-	-- M.floating_menu()
 end
 
 function M.floating_menu()
@@ -270,7 +264,7 @@ function M.floating_menu()
 			if file == "" then
 				display_file = "<Unknown File>"
 			end
-			
+
 			local line_text = ""
 			pcall(function()
 				if file ~= "" and fn.bufnr(file) > 0 then
@@ -402,7 +396,7 @@ function M.floating_menu()
 					)
 				end
 
-				-- Apply vertical and horizontal padding again
+				-- vertical and horizontal padding again
 				for _ = 1, vp do
 					table.insert(updated_lines, 1, "")
 				end
