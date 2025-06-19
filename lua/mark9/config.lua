@@ -1,6 +1,5 @@
 local M = {}
 
--- default options
 M.options = {
 	use_telescope = false,
 	sign_icon = "➤",
@@ -14,7 +13,15 @@ M.options = {
 	window_padding = 2,
 	window_position = "center", -- center | top_left | top_right | bottom_left | bottom_right
 	window_width_percent = 0.4,
+	window_height = nil, -- nil = auto (fits content), number = fixed height
+	window_max_height = 20, -- maximum height when auto-sizing
 	mark_chars = { "A", "B", "C", "D", "E", "F", "G", "H", "I" },
+	keymaps = {
+		close = { "q", "<Esc>" },
+		select = { "<CR>" },
+		delete = { "dd" },
+		disabled = { "<Tab>", "<S-Tab>", "i", "o", "O", "c", "s", "S", "r", "R" }
+	}
 }
 
 function M.setup(opts)
