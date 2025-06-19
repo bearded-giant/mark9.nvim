@@ -45,14 +45,37 @@ function M.load_marks()
 
 		if char and file ~= "" and line and line > 0 then
 			pcall(function()
-				local buf = fn.bufnr(file)
+				local abs_file = vim.fn.fnamemodify(file, ":p")
+				local buf = fn.bufnr(abs_file)
 				if buf <= 0 then
-					buf = vim.fn.bufadd(file)
+					buf = vim.fn.bufadd(abs_file)
 				end
 
 				if buf > 0 then
-					vim.cmd(string.format("mark %s %s", char, file))
+					vim.fn.bufload(buf)
 					pcall(vim.api.nvim_buf_set_mark, buf, char, line, mark.col or 0, {})
+					
+					if Config.options.sign_enabled then
+						fn.sign_place(0, sign_group, sign_name, buf, { lnum = line, priority = 10 })
+					end
+					
+					if Config.options.virtual_text_enabled then
+						pcall(api.nvim_buf_set_extmark, buf, ns_id, line - 1, 0, {
+							virt_text = { { Config.options.virtual_icon, "DiagnosticHint" } },
+							virt_text_pos = Config.options.virtual_text_pos,
+						})
+					end
+					
+					if Config.options.highlight_line_enabled then
+						pcall(api.nvim_buf_add_highlight,
+							buf,
+							ns_id,
+							Config.options.highlight_group or "Visual",
+							line - 1,
+							0,
+							-1
+						)
+					end
 				end
 			end)
 		end
@@ -181,6 +204,13 @@ function M.setup()
 		vim.notify("[mark9] All marks cleared", vim.log.levels.INFO)
 		M.save_marks()
 	end, {})
+	
+	api.nvim_create_autocmd("VimLeavePre", {
+		group = api.nvim_create_augroup("Mark9Save", { clear = true }),
+		callback = function()
+			M.save_marks()
+		end,
+	})
 end
 
 function M.add_mark()
@@ -289,6 +319,13 @@ function M.floating_menu()
 	end
 
 	local buf = api.nvim_create_buf(false, true)
+	api.nvim_buf_set_option(buf, "modifiable", false)
+	api.nvim_buf_set_option(buf, "buftype", "nofile")
+	api.nvim_buf_set_option(buf, "bufhidden", "wipe")
+	api.nvim_buf_set_option(buf, "swapfile", false)
+	api.nvim_buf_set_option(buf, "buflisted", false)
+	api.nvim_buf_set_option(buf, "filetype", "mark9")
+	
 	local lines = {}
 	for _, m in ipairs(marks) do
 		local filename = m.file ~= "" and fn.fnamemodify(m.file, ":t") or "<Unknown>"
@@ -311,9 +348,11 @@ function M.floating_menu()
 		end
 	end
 
+	api.nvim_buf_set_option(buf, "modifiable", true)
 	api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+	api.nvim_buf_set_option(buf, "modifiable", false)
 
-	local height = #lines
+	local height = Config.options.window_height or math.min(#lines, Config.options.window_max_height or 20)
 	local width = math.floor(vim.o.columns * (Config.options.window_width_percent or 0.4))
 	local row, col = 0, 0
 	local pos = Config.options.window_position or "center"
@@ -347,26 +386,82 @@ function M.floating_menu()
 	})
 
 	api.nvim_win_set_option(win, "cursorline", true)
+	api.nvim_win_set_option(win, "winfixbuf", true)
+	
+	if #marks > 0 then
+		api.nvim_win_set_cursor(win, { vp + 1, 0 })
+	end
+	
+	local augroup = api.nvim_create_augroup("Mark9Modal", { clear = true })
+	api.nvim_create_autocmd({"BufLeave", "WinLeave"}, {
+		group = augroup,
+		buffer = buf,
+		callback = function()
+			if api.nvim_win_is_valid(win) then
+				api.nvim_win_close(win, true)
+			end
+		end,
+	})
+	
+	for _, key in ipairs(Config.options.keymaps.disabled or {}) do
+		vim.keymap.set({'n', 'i'}, key, '<Nop>', { buffer = buf, silent = true })
+	end
+	
+	local buffer_switch_cmds = {':b', ':buffer', ':bn', ':bnext', ':bp', ':bprev', ':e', ':edit', ':n', ':next', ':prev', ':previous'}
+	for _, cmd in ipairs(buffer_switch_cmds) do
+		vim.keymap.set('n', cmd, '<Nop>', { buffer = buf, silent = true })
+	end
 
-	vim.keymap.set("n", "q", function()
-		if api.nvim_win_is_valid(win) then
-			api.nvim_win_close(win, true)
-		end
-	end, { buffer = buf })
+	for _, key in ipairs(Config.options.keymaps.close or { "q" }) do
+		vim.keymap.set("n", key, function()
+			if api.nvim_win_is_valid(win) then
+				api.nvim_win_close(win, true)
+			end
+		end, { buffer = buf })
+	end
 
-	vim.keymap.set("n", "<CR>", function()
+	for _, key in ipairs(Config.options.keymaps.select or { "<CR>" }) do
+		vim.keymap.set("n", key, function()
 		local idx = api.nvim_win_get_cursor(win)[1] - vp
 		local m = marks[idx]
 		if m then
 			api.nvim_win_close(win, true)
-			vim.cmd("edit " .. m.file)
-			api.nvim_win_set_cursor(0, { m.line, 0 })
-			vim.cmd("normal! zz")
+			vim.schedule(function()
+				vim.cmd("edit " .. m.file)
+				api.nvim_win_set_cursor(0, { m.line, 0 })
+				vim.cmd("normal! zz")
+			end)
 		end
-	end, { buffer = buf })
+		end, { buffer = buf })
+	end
+	
+	for i, mark in ipairs(marks) do
+		vim.keymap.set("n", mark.char, function()
+			api.nvim_win_close(win, true)
+			vim.schedule(function()
+				vim.cmd("edit " .. mark.file)
+				api.nvim_win_set_cursor(0, { mark.line, 0 })
+				vim.cmd("normal! zz")
+			end)
+		end, { buffer = buf })
+		
+		vim.keymap.set("n", tostring(i), function()
+			api.nvim_win_close(win, true)
+			vim.schedule(function()
+				vim.cmd("edit " .. mark.file)
+				api.nvim_win_set_cursor(0, { mark.line, 0 })
+				vim.cmd("normal! zz")
+			end)
+		end, { buffer = buf })
+	end
 
-	vim.keymap.set("n", "dd", function()
-		local idx = api.nvim_win_get_cursor(win)[1] - vp
+	for _, key in ipairs(Config.options.keymaps.delete or { "dd" }) do
+		vim.keymap.set("n", key, function()
+		local cursor_line = api.nvim_win_get_cursor(win)[1]
+		local idx = cursor_line - vp
+		if idx < 1 or idx > #marks then
+			return
+		end
 		local m = marks[idx]
 		if m then
 			vim.cmd("delmarks " .. m.char)
@@ -396,7 +491,6 @@ function M.floating_menu()
 					)
 				end
 
-				-- vertical and horizontal padding again
 				for _ = 1, vp do
 					table.insert(updated_lines, 1, "")
 				end
@@ -412,11 +506,25 @@ function M.floating_menu()
 				end
 
 				if api.nvim_buf_is_valid(buf) then
+					api.nvim_buf_set_option(buf, "modifiable", true)
 					api.nvim_buf_set_lines(buf, 0, -1, false, updated_lines)
+					api.nvim_buf_set_option(buf, "modifiable", false)
+					
+					local new_cursor_line = cursor_line
+					if new_cursor_line > #updated_lines then
+						new_cursor_line = #updated_lines
+					end
+					if new_cursor_line < vp + 1 and #marks > 0 then
+						new_cursor_line = vp + 1
+					end
+					if api.nvim_win_is_valid(win) then
+						api.nvim_win_set_cursor(win, { new_cursor_line, 0 })
+					end
 				end
 			end)
 		end
-	end, { buffer = buf })
+		end, { buffer = buf })
+	end
 end
 
 function M.save_marks()

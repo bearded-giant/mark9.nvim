@@ -53,6 +53,19 @@ Available user commands:
 - `:Mark9Delete A` — Delete a mark by ID (e.g. A)
 - `:Mark9ClearAll` — Remove all marks
 
+### Modal Navigation
+
+When using the floating mark list:
+
+| Key | Action |
+| --- | ------ |
+| `A-I` | Jump directly to mark (uppercase letters) |
+| `1-9` | Jump to mark by position |
+| `<CR>` | Jump to mark under cursor |
+| `dd` | Delete mark under cursor |
+| `q`, `<Esc>` | Close modal |
+| `j`/`k` or arrows | Navigate list |
+
 ---
 
 ## Configuration
@@ -73,9 +86,17 @@ Default options for mark9.nvim:
   horizontal_padding = 2,          -- horizontal padding in floating window
   window_position = "center",      -- 'center', 'top_left', 'top_right', 'bottom_left', 'bottom_right'
   window_width_percent = 0.4,      -- floating window width as a percent of editor width
+  window_height = nil,             -- fixed height or nil for auto-sizing
+  window_max_height = 20,          -- maximum height when auto-sizing
   highlight_line_enabled = true,   -- highlight marked line
   highlight_group = "Visual",      -- highlight group used
   mark_chars = { "A", "B", "C", "D", "E", "F", "G", "H", "I" }, -- characters to use
+  keymaps = {
+    close = { "q", "<Esc>" },      -- keys to close modal
+    select = { "<CR>" },           -- keys to select/jump to mark
+    delete = { "dd" },             -- keys to delete mark
+    disabled = { "<Tab>", "<S-Tab>", "i", "I", "a", "A", "o", "O", "c", "C", "s", "S", "r", "R" }
+  }
 }
 ```
 
