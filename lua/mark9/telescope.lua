@@ -11,37 +11,62 @@ local M = {}
 
 local function get_marks()
 	local marks = {}
+	local invalid_marks = {}
+
 	for _, char in ipairs(Config.options.mark_chars) do
 		local pos = api.nvim_get_mark(char, {})
 		if pos and pos[1] > 0 then
 			local file = fn.bufname(pos[4]) or ""
+
 			if file == "" then
-				file = "<Unknown File>"
-			end
-
-			local text = ""
-			pcall(function()
-				if file ~= "<Unknown File>" and fn.bufnr(file) > 0 then
-					local bufnr = fn.bufnr(file)
-					if api.nvim_buf_is_valid(bufnr) then
-						local line_count = api.nvim_buf_line_count(bufnr)
-						if pos[1] > 0 and pos[1] <= line_count then
-							text = api.nvim_buf_get_lines(bufnr, pos[1] - 1, pos[1], false)[1] or ""
-							text = text:gsub("^%s+", "") -- strip leading whitespace (thanks python)
+				-- Mark has no associated file, clean it up
+				table.insert(invalid_marks, char)
+			else
+				-- Check if file exists
+				local file_exists = fn.filereadable(fn.expand(file)) == 1
+				if not file_exists then
+					-- File doesn't exist, mark for cleanup
+					table.insert(invalid_marks, char)
+				else
+					-- File exists, include in list
+					local text = ""
+					pcall(function()
+						if fn.bufnr(file) > 0 then
+							local bufnr = fn.bufnr(file)
+							if api.nvim_buf_is_valid(bufnr) then
+								local line_count = api.nvim_buf_line_count(bufnr)
+								if pos[1] > 0 and pos[1] <= line_count then
+									text = api.nvim_buf_get_lines(bufnr, pos[1] - 1, pos[1], false)[1] or ""
+									text = text:gsub("^%s+", "") -- strip leading whitespace
+								end
+							end
 						end
-					end
-				end
-			end)
+					end)
 
-			table.insert(marks, {
-				char = char,
-				file = file,
-				line = pos[1],
-				col = pos[2],
-				text = text,
-			})
+					table.insert(marks, {
+						char = char,
+						file = file,
+						line = pos[1],
+						col = pos[2],
+						text = text,
+					})
+				end
+			end
 		end
 	end
+
+	-- Clean up invalid marks
+	if #invalid_marks > 0 then
+		for _, char in ipairs(invalid_marks) do
+			vim.cmd("delmarks " .. char)
+			fn.sign_unplace("Mark9Signs")
+		end
+		-- Save marks after cleanup
+		local marks_module = require("mark9.marks")
+		marks_module.save_marks()
+		vim.notify(string.format("[mark9] Cleaned up %d invalid mark(s)", #invalid_marks), vim.log.levels.INFO)
+	end
+
 	return marks
 end
 

@@ -188,6 +188,10 @@ function M.setup()
 		end,
 	})
 
+	api.nvim_create_user_command("Mark9DeleteAtLine", function()
+		M.delete_mark_at_line()
+	end, {})
+
 	api.nvim_create_user_command("Mark9ClearAll", function()
 		for _, char in ipairs(Config.options.mark_chars) do
 			vim.cmd("delmarks " .. char)
@@ -262,6 +266,33 @@ function M.add_mark()
 	M.save_marks()
 end
 
+function M.delete_mark_at_line()
+	local cur_buf = api.nvim_get_current_buf()
+	local cur_line = fn.line(".")
+
+	for _, char in ipairs(Config.options.mark_chars) do
+		local pos = api.nvim_get_mark(char, {})
+		if pos and pos[1] == cur_line and pos[4] == cur_buf then
+			vim.cmd("delmarks " .. char)
+			local ext = extmarks_by_char[char]
+			if ext and api.nvim_buf_is_valid(ext.buf) then
+				pcall(api.nvim_buf_del_extmark, ext.buf, ns_id, ext.id)
+				fn.sign_unplace(sign_group, { buffer = ext.buf })
+				if Config.options.highlight_line_enabled then
+					api.nvim_buf_clear_namespace(ext.buf, ns_id, 0, -1)
+				end
+			end
+			extmarks_by_char[char] = nil
+			vim.notify("[mark9] Deleted mark '" .. char .. "' at line " .. cur_line, vim.log.levels.INFO)
+			M.save_marks()
+			return true
+		end
+	end
+
+	vim.notify("[mark9] No mark at current line", vim.log.levels.INFO)
+	return false
+end
+
 function M.telescope_picker()
 	local original_setting = Config.options.use_telescope
 	local ok, telescope = pcall(require, "mark9.telescope")
@@ -286,36 +317,69 @@ end
 
 function M.floating_menu()
 	local marks = {}
+	local invalid_marks = {}
+
 	for _, char in ipairs(Config.options.mark_chars) do
 		local pos = api.nvim_get_mark(char, {})
 		if pos and pos[1] > 0 then
 			local file = fn.bufname(pos[4]) or ""
-			local display_file = file
-			if file == "" then
-				display_file = "<Unknown File>"
-			end
 
-			local line_text = ""
-			pcall(function()
-				if file ~= "" and fn.bufnr(file) > 0 then
-					local bufnr = fn.bufnr(file)
-					if api.nvim_buf_is_valid(bufnr) then
-						local line_count = api.nvim_buf_line_count(bufnr)
-						if pos[1] > 0 and pos[1] <= line_count then
-							line_text = api.nvim_buf_get_lines(bufnr, pos[1] - 1, pos[1], false)[1] or ""
-							line_text = line_text:gsub("^%s+", "")
+			-- Check if file is valid
+			if file == "" then
+				-- Mark has no associated file, clean it up
+				table.insert(invalid_marks, char)
+			else
+				-- Check if file exists
+				local file_exists = fn.filereadable(fn.expand(file)) == 1
+				if not file_exists then
+					-- File doesn't exist, mark for cleanup
+					table.insert(invalid_marks, char)
+				else
+					-- File exists, include in list
+					local display_file = file
+					local line_text = ""
+
+					pcall(function()
+						if fn.bufnr(file) > 0 then
+							local bufnr = fn.bufnr(file)
+							if api.nvim_buf_is_valid(bufnr) then
+								local line_count = api.nvim_buf_line_count(bufnr)
+								if pos[1] > 0 and pos[1] <= line_count then
+									line_text = api.nvim_buf_get_lines(bufnr, pos[1] - 1, pos[1], false)[1] or ""
+									line_text = line_text:gsub("^%s+", "")
+								end
+							end
 						end
-					end
+					end)
+
+					table.insert(marks, {
+						char = char,
+						file = file,
+						display_file = display_file,
+						line = pos[1],
+						text = line_text,
+					})
 				end
-			end)
-			table.insert(marks, {
-				char = char,
-				file = file,
-				display_file = display_file,
-				line = pos[1],
-				text = line_text,
-			})
+			end
 		end
+	end
+
+	-- Clean up invalid marks
+	if #invalid_marks > 0 then
+		for _, char in ipairs(invalid_marks) do
+			vim.cmd("delmarks " .. char)
+			local ext = extmarks_by_char[char]
+			if ext and api.nvim_buf_is_valid(ext.buf) then
+				pcall(api.nvim_buf_del_extmark, ext.buf, ns_id, ext.id)
+				fn.sign_unplace(sign_group, { buffer = ext.buf })
+				if Config.options.highlight_line_enabled then
+					api.nvim_buf_clear_namespace(ext.buf, ns_id, 0, -1)
+				end
+			end
+			extmarks_by_char[char] = nil
+		end
+		M.save_marks()
+		vim.notify(string.format("[mark9] Cleaned up %d invalid mark(s)", #invalid_marks), vim.log.levels.INFO)
 	end
 
 	local buf = api.nvim_create_buf(false, true)
@@ -424,34 +488,68 @@ function M.floating_menu()
 		vim.keymap.set("n", key, function()
 		local idx = api.nvim_win_get_cursor(win)[1] - vp
 		local m = marks[idx]
-		if m then
+		if m and m.file and m.file ~= "" then
 			api.nvim_win_close(win, true)
 			vim.schedule(function()
-				vim.cmd("edit " .. m.file)
-				api.nvim_win_set_cursor(0, { m.line, 0 })
-				vim.cmd("normal! zz")
+				local ok = pcall(vim.cmd, "edit " .. vim.fn.fnameescape(m.file))
+				if ok then
+					local line_count = api.nvim_buf_line_count(0)
+					local target_line = math.min(m.line, line_count)
+					if target_line > 0 then
+						api.nvim_win_set_cursor(0, { target_line, 0 })
+						vim.cmd("normal! zz")
+					end
+				else
+					vim.notify("[mark9] Cannot open file: " .. m.file, vim.log.levels.ERROR)
+				end
 			end)
+		elseif m then
+			vim.notify("[mark9] Mark has invalid file reference", vim.log.levels.WARN)
 		end
 		end, { buffer = buf })
 	end
 	
 	for i, mark in ipairs(marks) do
 		vim.keymap.set("n", mark.char, function()
-			api.nvim_win_close(win, true)
-			vim.schedule(function()
-				vim.cmd("edit " .. mark.file)
-				api.nvim_win_set_cursor(0, { mark.line, 0 })
-				vim.cmd("normal! zz")
-			end)
+			if mark.file and mark.file ~= "" then
+				api.nvim_win_close(win, true)
+				vim.schedule(function()
+					local ok = pcall(vim.cmd, "edit " .. vim.fn.fnameescape(mark.file))
+					if ok then
+						local line_count = api.nvim_buf_line_count(0)
+						local target_line = math.min(mark.line, line_count)
+						if target_line > 0 then
+							api.nvim_win_set_cursor(0, { target_line, 0 })
+							vim.cmd("normal! zz")
+						end
+					else
+						vim.notify("[mark9] Cannot open file: " .. mark.file, vim.log.levels.ERROR)
+					end
+				end)
+			else
+				vim.notify("[mark9] Mark has invalid file reference", vim.log.levels.WARN)
+			end
 		end, { buffer = buf })
-		
+
 		vim.keymap.set("n", tostring(i), function()
-			api.nvim_win_close(win, true)
-			vim.schedule(function()
-				vim.cmd("edit " .. mark.file)
-				api.nvim_win_set_cursor(0, { mark.line, 0 })
-				vim.cmd("normal! zz")
-			end)
+			if mark.file and mark.file ~= "" then
+				api.nvim_win_close(win, true)
+				vim.schedule(function()
+					local ok = pcall(vim.cmd, "edit " .. vim.fn.fnameescape(mark.file))
+					if ok then
+						local line_count = api.nvim_buf_line_count(0)
+						local target_line = math.min(mark.line, line_count)
+						if target_line > 0 then
+							api.nvim_win_set_cursor(0, { target_line, 0 })
+							vim.cmd("normal! zz")
+						end
+					else
+						vim.notify("[mark9] Cannot open file: " .. mark.file, vim.log.levels.ERROR)
+					end
+				end)
+			else
+				vim.notify("[mark9] Mark has invalid file reference", vim.log.levels.WARN)
+			end
 		end, { buffer = buf })
 	end
 

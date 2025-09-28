@@ -28,6 +28,7 @@ This is a solve I wanted which bridges the simplicity of Harpoon with the line-l
   end,
   keys = {
     { "<leader>ha", function() require("mark9.marks").add_mark() end, desc = "Add mark" },
+    { "<leader>hd", function() require("mark9.marks").delete_mark_at_line() end, desc = "Delete mark at line" },
     { "<leader>hl", function() vim.cmd("Mark9List") end, desc = "List marks" },
     { "<leader>hL", function() require("mark9.telescope").picker() end, desc = "Telescope picker" },
     { "<leader>hc", function() vim.cmd("Mark9ClearAll") end, desc = "Clear all marks" },
@@ -40,17 +41,19 @@ This is a solve I wanted which bridges the simplicity of Harpoon with the line-l
 
 ## Usage
 
-| Mapping      | Description           |
-| ------------ | --------------------- |
-| `<leader>ha` | Add current line mark |
-| `<leader>hl` | Show mark list        |
-| `<leader>hL` | Open Telescope picker |
-| `<leader>hc` | Clear all marks       |
+| Mapping      | Description                     |
+| ------------ | ------------------------------- |
+| `<leader>ha` | Add current line mark           |
+| `<leader>hd` | Delete mark at current line     |
+| `<leader>hl` | Show mark list                  |
+| `<leader>hL` | Open Telescope picker           |
+| `<leader>hc` | Clear all marks                 |
 
 Available user commands:
 
 - `:Mark9List` — Open the mark picker (Telescope or floating, depending on config)
-- `:Mark9Delete A` — Delete a mark by ID (e.g. A)
+- `:Mark9Delete A` — Delete a specific mark by ID (e.g. A, B, C...)
+- `:Mark9DeleteAtLine` — Delete the mark at the current line (if one exists)
 - `:Mark9ClearAll` — Remove all marks
 
 ### Modal Navigation
