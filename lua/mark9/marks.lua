@@ -269,23 +269,62 @@ end
 function M.delete_mark_at_line()
 	local cur_buf = api.nvim_get_current_buf()
 	local cur_line = fn.line(".")
+	local cur_file = fn.expand("%:p")  -- Get absolute path of current file
 
 	for _, char in ipairs(Config.options.mark_chars) do
 		local pos = api.nvim_get_mark(char, {})
-		if pos and pos[1] == cur_line and pos[4] == cur_buf then
-			vim.cmd("delmarks " .. char)
-			local ext = extmarks_by_char[char]
-			if ext and api.nvim_buf_is_valid(ext.buf) then
-				pcall(api.nvim_buf_del_extmark, ext.buf, ns_id, ext.id)
-				fn.sign_unplace(sign_group, { buffer = ext.buf })
-				if Config.options.highlight_line_enabled then
-					api.nvim_buf_clear_namespace(ext.buf, ns_id, 0, -1)
+		if pos and pos[1] > 0 then
+			-- Get the file path of the mark's buffer
+			local mark_file = ""
+			local mark_bufnr = pos[4]
+
+			-- Handle both number and string buffer references
+			if mark_bufnr then
+				if type(mark_bufnr) == "string" then
+					-- If it's a string, it might be a file path already
+					mark_file = fn.fnamemodify(mark_bufnr, ":p")
+				elseif type(mark_bufnr) == "number" and mark_bufnr > 0 then
+					-- If it's a buffer number, get the file path
+					mark_file = fn.bufname(mark_bufnr)
+					if mark_file ~= "" then
+						mark_file = fn.fnamemodify(mark_file, ":p")
+					end
 				end
 			end
-			extmarks_by_char[char] = nil
-			vim.notify("[mark9] Deleted mark '" .. char .. "' at line " .. cur_line, vim.log.levels.INFO)
-			M.save_marks()
-			return true
+
+			-- Check if same line and same file (by path comparison)
+			if pos[1] == cur_line and mark_file == cur_file then
+				vim.cmd("delmarks " .. char)
+
+				-- Clean up visual indicators
+				local ext = extmarks_by_char[char]
+				if ext and api.nvim_buf_is_valid(ext.buf) then
+					pcall(api.nvim_buf_del_extmark, ext.buf, ns_id, ext.id)
+					fn.sign_unplace(sign_group, { buffer = ext.buf })
+					if Config.options.highlight_line_enabled then
+						api.nvim_buf_clear_namespace(ext.buf, ns_id, 0, -1)
+					end
+				end
+
+				-- Also clean up from current buffer if different
+				if type(mark_bufnr) == "number" and mark_bufnr ~= cur_buf then
+					fn.sign_unplace(sign_group, { buffer = cur_buf })
+					if Config.options.highlight_line_enabled then
+						api.nvim_buf_clear_namespace(cur_buf, ns_id, 0, -1)
+					end
+				elseif type(mark_bufnr) == "string" then
+					-- If mark_bufnr is a string, clean up current buffer too
+					fn.sign_unplace(sign_group, { buffer = cur_buf })
+					if Config.options.highlight_line_enabled then
+						api.nvim_buf_clear_namespace(cur_buf, ns_id, 0, -1)
+					end
+				end
+
+				extmarks_by_char[char] = nil
+				vim.notify("[mark9] Deleted mark '" .. char .. "' at line " .. cur_line, vim.log.levels.INFO)
+				M.save_marks()
+				return true
+			end
 		end
 	end
 
